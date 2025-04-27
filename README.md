@@ -16,7 +16,7 @@ The EPUB Translator Reader is a web-based application that allows you to read EP
 To set up and run the EPUB Translator Reader, follow these steps:
 
 1. **Serve the Directory**:
-   - Use a local server to serve the directory containing the application files. You can use Python's built-in HTTP server:
+   - Use a local server to serve the directory containing the `index.html`. You can use Python's built-in HTTP server:
      ```bash
      python -m http.server 8000
      ```
@@ -77,27 +77,16 @@ The EPUB Translator Reader supports integration with Google Translate and LibreT
   2. Set up a virtual environment:
      ```bash
      uv venv
-     . .venv/bin/activate
+     source .venv/bin/activate
      ```
   3. Install dependencies:
      ```bash
-    brew install icu4c pkg-config
-    export PATH="/opt/homebrew/opt/icu4c/bin:$PATH"
-    export PATH="/opt/homebrew/opt/icu4c/sbin:$PATH"
-    export PKG_CONFIG_PATH="/opt/homebrew/opt/icu4c/lib/pkgconfig:$PKG_CONFIG_PATH"
-    uv pip install "libretranslate>=1.6.0" --no-deps
-    uv pip install argos-translate-files
-    uv pip install flask
-    uv pip install flask_babel
-    uv pip install flask_session
-    uv pip install flask_swagger
-    uv pip install flask_swagger_ui
-    uv pip install redis
-    uv pip install apscheduler
-    uv pip install langdetect
-    uv pip install lexilang
-    uv pip install expiringdict
-    uv pip install waitress
+     brew install icu4c pkg-config
+     export PATH="/opt/homebrew/opt/icu4c/bin:$PATH"
+     export PATH="/opt/homebrew/opt/icu4c/sbin:$PATH"
+     export PKG_CONFIG_PATH="/opt/homebrew/opt/icu4c/lib/pkgconfig:$PKG_CONFIG_PATH"
+     uv pip install "libretranslate>=1.6.0" --no-deps
+     uv pip install argos-translate-files flask flask_babel flask_session flask_swagger flask_swagger_ui redis apscheduler langdetect lexilang expiringdict waitress
      ```
   4. Run LibreTranslate with the desired languages:
      ```bash
@@ -131,9 +120,9 @@ The EPUB Translator Reader supports integration with Google Translate and LibreT
 
 ## License Information
 
-The dictionaries used in this application are derived from Wiktionary extracts, which are licensed under the [Creative Commons Attribution-Share-Alike License](https://dumps.wikimedia.org/legal.html). For more details, see the [Wikimedia License Information](https://dumps.wikimedia.org/legal.html).
+The dictionaries used in this application are derived from Wiktionary extracts, which are licensed under the [Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) License](https://creativecommons.org/licenses/by-sa/4.0/). For more details, see the [Wikimedia License Information](https://dumps.wikimedia.org/legal.html).
 
-This project is licensed under the [GPLv3](https://www.gnu.org/licenses/gpl-3.0.de.html).
+This project is licensed under the [GNU General Public License 3 (GPLv3)](https://www.gnu.org/licenses/gpl-3.0.de.html).
 
 ## Troubleshooting
 
@@ -151,6 +140,6 @@ This project is licensed under the [GPLv3](https://www.gnu.org/licenses/gpl-3.0.
 
 This application uses the following third-party libraries and resources:
 - [Tailwind CSS](https://tailwindcss.com) for styling.
-- [JSZip](http://stuartk.com/jszip) for handling EPUB files.
+- [JSZip](http://stuartk.com/jszip) for unpacking EPUB files.
 - [LibreTranslate](https://github.com/LibreTranslate/LibreTranslate) for local translation services.
 - [Wiktionary](https://en.wiktionary.org) for dictionary data.
