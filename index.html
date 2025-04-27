@@ -865,9 +865,10 @@
               current = current.parentElement;
             }
             this.floatingBox.className = `floating-box ${headingClass}`;
+            const currentTranslations = state.dictionary.translate(original);
             this.floatingBox.innerHTML = `
               <div class="original-word">${original}</div>
-              <div class="translations">${translations.map(t => `<span class="translated-word">${t}</span>`).join('')}</div>
+              <div class="translations">${currentTranslations.map(t => `<span class="translated-word">${t}</span>`).join('')}</div>
             `;
             this.floatingBox.style.display = 'block';
           });
