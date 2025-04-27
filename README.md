@@ -34,6 +34,10 @@ To set up and run the EPUB Translator Reader, follow these steps:
 
 3. **Process Wiktionary Extracts**:
    - Use the `dictionaries/generate/convert_enwiktionary.py` script to process the downloaded extracts (the plain XML) and generate the necessary dictionary files.
+     Example:
+     ```bash
+     python convert_enwiktionary.py Spanish German enwiktionary-20250420-pages-articles-multistream.xml dict_es-de.txt
+     ```
    - Place the generated dictionary files in the `dictionaries/` directory.
 
 4. **Optional: Set Up LibreTranslate**:
