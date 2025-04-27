@@ -86,7 +86,8 @@ The EPUB Translator Reader supports integration with Google Translate and LibreT
      ```
   3. Install dependencies:
      ```bash
-     brew install icu4c pkg-config
+     brew install icu4c pkg-config # for MacOS
+     # sudo apt install -y libicu-dev pkg-config # for Linux
      export PATH="/opt/homebrew/opt/icu4c/bin:$PATH"
      export PATH="/opt/homebrew/opt/icu4c/sbin:$PATH"
      export PKG_CONFIG_PATH="/opt/homebrew/opt/icu4c/lib/pkgconfig:$PKG_CONFIG_PATH"
