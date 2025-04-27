@@ -1,12 +1,13 @@
 # EPUB Translator Reader
 
-The EPUB Translator Reader is a web-based application that allows you to read EPUB files with word-for-word translations. It supports multiple languages and integrates with translation services like Google Translate and LibreTranslate for enhanced functionality. The application also features dark mode, translation caching, and customizable settings to improve your reading experience.
+The EPUB Translator Reader is a web-based application designed to read EPUB files with word-for-word translations, making it easier to enjoy books in foreign languages while learning new vocabulary and grammar. Unlike traditional flashcards, this tool lets you dive straight into reading, naturally reinforcing important words through their frequent appearance in the text and introducing basic grammar as you go. It supports multiple languages and integrates with translation services like Google Translate and LibreTranslate for a seamless experience.
 
 ## Features
 
-- **Word-for-Word Translations**: Read EPUB files with translations displayed below each word or phrase.
-- **Multi-Language Support (not yet final)**: Choose from various source and target languages for translations. Note: At the moment, there is only a Spanish-German dictionary included. Other dictionaries have to be generated via the `dictionaries/generate/convert_enwiktionary.py` script.
-- **Dark Mode**: Toggle between light and dark themes for comfortable reading in different environments.
+- **Word-for-Word Translations**: View translations below each word or phrase as you read EPUB files, perfect for language learners.
+- **Engaging Learning Experience**: Start reading immediately without memorizing flashcards, with frequent words reinforced naturally and grammar learned in context.
+- **Multi-Language Support (in progress)**: Select from various source and target languages. Currently, a Spanish-German dictionary is included; other dictionaries can be generated using the `dictionaries/generate/convert_enwiktionary.py` script.
+- **Dark Mode**: Switch between light and dark themes for comfortable reading.
 - **Translation Caching**: Cache translations locally to improve performance and reduce API calls.
 - **Integration with Translation Services**: Use Google Translate or LibreTranslate for words not found in the dictionary.
 - **Customizable Settings**: Adjust the number of translations per word and enable/disable translation services.
