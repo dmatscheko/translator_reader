@@ -323,7 +323,7 @@ def process_file(lang1, lang2, input_file, output_file):
         original, translation = pair
         word_count = len(translation.split())
         char_count = len(translation)
-        return (original, word_count, char_count)
+        return (original, word_count, char_count, translation)
 
     sorted_pairs = sorted(set(cleaned_pairs), key=sort_key)
     logger.info("After sorting and deduplication: %d pairs", len(sorted_pairs))
