@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EPUB Translator Reader</title>
+  <!-- Include Tailwind CSS for responsive, utility-first styling -->
+  <script src="tailwindcss.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class', // Enable dark mode using class strategy
+    }
+  </script>
+  <!-- Include JSZip for parsing EPUB files -->
+  <script src="jszip.js"></script>
+  <style>
+    /* Style for translation boxes showing original and translated words */
+    .translation-box {
+      display: inline-block;
+      margin: 0 2px 8px 0;
+      vertical-align: top;
+      line-height: 1.5;
+      transition: background-color 0.2s ease;
+    }
+    .translation-box:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+    .dark .translation-box:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+    .original-word {
+      font-size: 16px;
+      color: #333;
+    }
+    .dark .original-word {
+      color: #ddd;
+    }
+    .translated-word {
+      font-size: 10px;
+      font-weight: normal !important;
+      font-style: normal !important;
+      color: #777;
+      text-align: center;
+      display: none;
+    }
+    .dark .translated-word {
+      color: #aaa;
+    }
+    /* Show translations when in translation mode, unless hidden */
+    #bookContent.translation-mode .translation-box .translated-word:not(.hidden-translation) {
+      display: block;
+    }
+    .translations {
+      margin-top: 2px;
+    }
+    /* Container for book content pages */
+    .page-container {
+      min-height: calc(100vh - 150px);
+      padding: 20px;
+      overflow: hidden;
+    }
+    /* Loading spinner animation */
+    .loading-spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 50px auto;
+    }
+    .dark .loading-spinner {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top: 4px solid #60a5fa;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* Responsive multi-column layout for book content */
+    #bookContent {
+      column-width: 100%;
+      column-gap: 40px;
+    }
+    @media (min-width: 768px) {
+      #bookContent {
+        column-width: 45vw;
+      }
+    }
+    /* Custom styling for file input button */
+    .file-input-label {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background-color: #2563eb;
+      color: white;
+      font-weight: 500;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      text-align: center;
+    }
+    .dark .file-input-label {
+      background-color: #1e40af;
+    }
+    #epubFile {
+      display: none; /* Hide default file input */
+    }
+    /* Style images extracted from EPUB */
+    .epub-image {
+      max-width: 100%;
+      height: auto;
+      margin: 10px 0;
+      display: block;
+      border-radius: 4px;
+    }
+    /* Floating box for hover translation display */
+    .floating-box {
+      position: absolute;
+      z-index: 1000;
+      background-color: #f5f5f5ee;
+      border-radius: 3px;
+      padding: 4px;
+      pointer-events: none;
+      display: none;
+    }
+    .dark .floating-box {
+      background-color: #374151;
+    }
+    .floating-box .original-word {
+      font-size: 16px;
+      color: #333;
+    }
+    .dark .floating-box .original-word {
+      color: #ddd;
+    }
+    .floating-box .translated-word {
+      font-size: 10px;
+      color: #555;
+      display: block;
+      text-align: center;
+    }
+    .dark .floating-box .translated-word {
+      color: #aaa;
+    }
+    /* Adjust font sizes for headings in translation and floating boxes */
+    h1>.translation-box>.original-word, .floating-box-h1 .original-word { font-size: 2em; font-weight: bold; }
+    h2>.translation-box>.original-word, .floating-box-h2 .original-word { font-size: 1.5em; font-weight: bold; }
+    h3>.translation-box>.original-word, .floating-box-h3 .original-word { font-size: 1.17em; font-weight: bold; }
+    h4>.translation-box>.original-word, .floating-box28f69273-7825-4ce5-af65-034dd404ca6c-h4 .original-word { font-size: 1em; font-weight: bold; }
+    h5>.translation-box>.original-word, .floating-box-h5 .original-word { font-size: 0.83em; font-weight: bold; }
+    h6>.translation-box>.original-word, .floating-box-h6 .original-word { font-size: 0.67em; font-weight: bold; }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+  <!-- Main container with padding and centered content -->
+  <div class="container mx-auto px-4 py-6">
+    <!-- Header with title and description -->
+    <header class="mb-8 flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold text-center text-blue-700 dark:text-blue-300 mb-2">EPUB Translator Reader</h1>
+        <p class="text-center text-gray-600 dark:text-gray-400">Read ebooks with word-for-word translation</p>
+      </div>
+      <!-- Dark mode toggle button -->
+      <button id="darkModeToggle" class="text-sm px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">
+        Toggle Dark Mode
+      </button>
+    </header>
+
+    <!-- Settings section for file upload and language options -->
+    <section id="settingsContainer" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+      <!-- Flex layout for file and language inputs -->
+      <div class="flex flex-col md:flex-row gap-4 mb-6">
+        <!-- Custom file input for EPUB selection -->
+        <div class="w-full md:w-1/3">
+          <label for="epubFile" class="file-input-label">Select File</label>
+          <input type="file" id="epubFile" accept=".epub">
+        </div>
+        <!-- Dropdown for source language -->
+        <div class="w-full md:w-1/3">
+          <label for="sourceLang" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Source Language</label>
+          <select id="sourceLang" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+            <option value="es" selected>Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="it">Italian</option>
+            <option value="pt">Portuguese</option>
+            <option value="ru">Russian</option>
+            <option value="zh">Chinese</option>
+            <option value="ja">Japanese</option>
+            <option value="ar">Arabic</option>
+          </select>
+        </div>
+        <!-- Dropdown for target language -->
+        <div class="w-full md:w-1/3">
+          <label for="targetLang" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Language</label>
+          <select id="targetLang" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de" selected>German</option>
+            <option value="it">Italian</option>
+            <option value="pt">Portuguese</option>
+            <option value="ru">Russian</option>
+            <option value="zh">Chinese</option>
+            <option value="ja">Japanese</option>
+            <option value="ar">Arabic</option>
+          </select>
+        </div>
+        <!-- Input for maximum translations per word -->
+        <div class="w-full md:w-1/3">
+          <label for="maxTranslations" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Translations per Word</label>
+          <input type="number" id="maxTranslations" value="2" min="1" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+        </div>
+      </div>
+      <!-- Google Translate and LibreTranslate integration settings -->
+      <div class="mb-6">
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center">
+            <input type="checkbox" id="enableGoogleTranslate" class="h-4 w-4 text-blue-600 dark:text-blue-400 border-gray-300 dark:border-gray-600 rounded">
+            <label for="enableGoogleTranslate" class="ml-2 text-sm text-gray-900 dark:text-gray-100">Enable Google Translate</label>
+          </div>
+          <div class="flex items-center">
+            <input type="checkbox" id="enableLibreTranslate" class="h-4 w-4 text-blue-600 dark:text-blue-400 border-gray-300 dark:border-gray-600 rounded">
+            <label for="enableLibreTranslate" class="ml-2 text-sm text-gray-900 dark:text-gray-100">Enable LibreTranslate</label>
+          </div>
+        </div>
+        <div id="apiKeyContainer" class="mt-2 hidden">
+          <label for="apiKey" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Google Translate API Key</label>
+          <input type="text" id="apiKey" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="Enter your API key">
+        </div>
+        <!-- Button to clear dictionary cache and counter for entries -->
+        <div class="flex items-center space-x-4 mt-4">
+          <button id="clearCacheBtn" class="text-sm px-3 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-800">Clear Dictionary Cache</button>
+          <span id="cacheCount" class="text-sm text-gray-600 dark:text-gray-400">0 entries</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reader section to display book content -->
+    <section id="readerContainer" class="hidden bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+      <!-- Header with book title, navigation, and controls -->
+      <div class="flex justify-between items-center bg-gray-100 dark:bg-gray-700 px-6 py-3 border-b border-gray-200 dark:border-gray-600">
+        <h2 id="bookTitle" class="text-lg font-semibold text-gray-800 dark:text-gray-200"></h2>
+        <div class="flex items-center gap-4">
+          <!-- Page navigation buttons -->
+          <div class="flex items-center">
+            <button class="prevPageBtn p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:text-gray-300 dark:disabled:text-gray-600" disabled>
+              <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+              </svg>
+            </button>
+            <span class="pageInfo mx-2 text-sm text-gray-600 dark:text-gray-400">Page 1</span>
+            <button class="nextPageBtn p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:text-gray-300 dark:disabled:text-gray-600">
+              <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+              </svg>
+            </button>
+          </div>
+          <!-- Buttons to toggle translation mode and settings -->
+          <button id="toggleModeBtn" class="text-sm px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800">
+            Hide Translations
+          </button>
+          <button id="toggleSettingsBtn" class="text-sm px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800">
+            Hide Settings
+          </button>
+        </div>
+      </div>
+      <!-- Loading indicator during content processing -->
+      <div id="loadingIndicator" class="hidden text-center">
+        <div class="loading-spinner"></div>
+        <p class="text-gray-600 dark:text-gray-400">Loading and translating content...</p>
+      </div>
+      <!-- Container for rendered book content -->
+      <div id="pageContainer" class="page-container hidden">
+        <div id="bookContent"></div>
+      </div>
+      <!-- Bottom navigation bar -->
+      <div class="flex justify-center items-center bg-gray-100 dark:bg-gray-700 px-6 py-3 border-t border-gray-200 dark:border-gray-600">
+        <div class="flex items-center">
+          <button class="prevPageBtn p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:text-gray-300 dark:disabled:text-gray-600" disabled>
+            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+          <span class="pageInfo mx-2 text-sm text-gray-600 dark:text-gray-400">Page 1</span>
+          <button class="nextPageBtn p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:text-gray-300 dark:disabled:text-gray-600">
+            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Global state to manage app data
+    const state = {
+      dictionary: null, // Dictionary instance with cache
+      book: null, // Parsed EPUB data (title, content, images)
+      page: 1, // Current page number
+      totalPages: 0, // Total number of pages
+      content: [], // Array of render instructions from EPUB
+      isTranslationMode: true, // Toggle for showing translations
+      wordsPerPage: 0, // Words per page for pagination
+      maxPhraseLength: 5, // Max words to check for phrases
+      enableGoogleTranslate: false, // Toggle for Google Translate
+      enableLibreTranslate: false, // Toggle for LibreTranslate
+      googleApiKey: '', // API key for Google Translate
+      maxTranslations: 2, // Limit on translations per word/phrase
+      darkMode: 'system' // Dark mode preference: 'light', 'dark', or 'system'
+    };
+
+    class Dictionary {
+      // Constructor takes URL of dictionary file
+      constructor(url) {
+        this.url = url;
+        this.langPair = url.match(/dict_([a-z]+-[a-z]+)\.txt/)[1];
+        this.fileTranslations = new Map();
+        this.cacheTranslations = new Map();
+      }
+
+      // Initialize by loading file dictionary and cache
+      async init() {
+        this.fileTranslations = new Map();
+        this.cacheTranslations = new Map();
+
+        // Load additional dictionary (_more.txt)
+        const moreDictUrl = this.url.replace('.txt', '_more.txt');
+        try {
+          let response = await fetch(moreDictUrl);
+          if (response.ok) {
+            let text = await response.text();
+            this.parse(text); // Parse and merge additional dictionary entries
+          }
+        } catch (error) {
+          console.warn(`Error loading additional dictionary ${moreDictUrl}:`, error);
+        }
+
+        // Load primary dictionary
+        let response = await fetch(this.url);
+        if (!response.ok) throw new Error(`Failed to load dictionary: ${response.statusText}`);
+        let text = await response.text();
+        this.parse(text);
+
+        // Load cache from localStorage
+        const cacheKey = `cache_${this.langPair}`;
+        const cachedData = localStorage.getItem(cacheKey);
+        if (cachedData) {
+          const parsed = JSON.parse(cachedData);
+          this.cacheTranslations = new Map(parsed.map(([k, v]) => [k, new Set(v)]));
+        }
+      }
+
+      // Parse tab-separated lines into fileTranslations map
+      parse(text) {
+        text.split('\n').forEach(line => {
+          if (line.startsWith('#') || !line) return;
+          const [source, translation] = line.split('\t');
+          if (source && translation) {
+            const key = this.cleanText(source).toLowerCase();
+            const value = this.cleanText(translation);
+            if (!this.fileTranslations.has(key)) {
+              this.fileTranslations.set(key, new Set());
+            }
+            this.fileTranslations.get(key).add(value);
+          }
+        });
+      }
+
+      // Remove annotations and normalize spaces
+      cleanText(text) {
+        return text.replace(/[\(\[{<].*?[\)\]}>]/g, '').replace(/\s+/g, ' ').trim();
+      }
+
+      // Convert Spanish plural nouns to singular
+      spanishPluralToSingular(word) {
+        const vowels = ['a', 'e', 'i', 'o', 'u'];
+        if (word.endsWith('s') && word.length > 1) {
+          // Words ending in -ces (e.g., luces, peces)
+          if (word.endsWith('ces') && word.length > 3) return word.slice(0, -3) + 'z';
+          // Words ending in consonant + es (e.g., ciudades, papeles)
+          if (word.endsWith('es') && word.length > 2) {
+            const charBeforeEs = word.slice(-3, -2);
+            if (!vowels.includes(charBeforeEs)) return word.slice(0, -2);
+          }
+          // Words ending in vowel + s (e.g., casas, perros)
+          const lastCharBeforeS = word.slice(-2, -1);
+          if (vowels.includes(lastCharBeforeS)) return word.slice(0, -1);
+        }
+        return word;
+      }
+
+      // Translate a phrase or word, returning an array of unique translations
+      translate(phrase) {
+        const key = this.cleanText(phrase).toLowerCase();
+        if (this.fileTranslations.has(key)) {
+          return Array.from(this.fileTranslations.get(key));
+        } else if (this.cacheTranslations.has(key)) {
+          return Array.from(this.cacheTranslations.get(key));
+        }
+        // If no translations are found and it's a single Spanish word, try singular form and mark translations as plural
+        if (!phrase.includes(' ') && elements.sourceLang.value === 'es') {
+          const singular = this.spanishPluralToSingular(key);
+          if (this.fileTranslations.has(singular)) {
+            return Array.from(this.fileTranslations.get(singular)).map(t => `${t} (pl)`);
+          } else if (this.cacheTranslations.has(singular)) {
+            return Array.from(this.cacheTranslations.get(singular)).map(t => `${t} (pl)`);
+          }
+        }
+        return [];
+      }
+
+      // Add translations to cache and save to localStorage
+      addToCache(word, translations) {
+        const key = this.cleanText(word).toLowerCase();
+        if (!this.cacheTranslations.has(key)) {
+          this.cacheTranslations.set(key, new Set());
+        }
+        translations.forEach(t => this.cacheTranslations.get(key).add(t));
+        this.saveCache();
+      }
+
+      // Save cache to localStorage
+      saveCache() {
+        const cacheKey = `cache_${this.langPair}`;
+        const data = Array.from(this.cacheTranslations.entries()).map(([k, v]) => [k, Array.from(v)]);
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+      }
+    }
+
+    // Processes EPUB files into renderable content
+    class EPUBProcessor {
+      // Process an EPUB ArrayBuffer into title, content, and images
+      async process(arrayBuffer) {
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const container = await zip.file('META-INF/container.xml').async('text');
+        const rootPath = container.match(/full-path="([^"]*)"/)?.[1] || '';
+        const opfDir = rootPath.substring(0, rootPath.lastIndexOf('/') + 1);
+        const opf = await zip.file(rootPath).async('text');
+        const doc = new DOMParser().parseFromString(opf, 'application/xml');
+        const title = doc.querySelector('metadata > dc\\:title, metadata title')?.textContent || 'Untitled Book';
+
+        // Build manifest of EPUB items (id to file path)
+        const manifest = {};
+        doc.querySelectorAll('manifest item').forEach(item => {
+          manifest[item.getAttribute('id')] = opfDir + item.getAttribute('href');
+        });
+
+        // Extract images as data URLs
+        const images = new Map();
+        for (const [id, path] of Object.entries(manifest)) {
+          if (/\.(jpg|jpeg|png|gif|svg|webp)$/i.test(path)) {
+            try {
+              const data = await zip.file(path).async('arraybuffer');
+              const blob = new Blob([data], { type: `image/${path.split('.').pop().toLowerCase()}` });
+              images.set(path, URL.createObjectURL(blob));
+            } catch (error) {
+              console.warn(`Image load failed: ${path}`, error);
+            }
+          }
+        }
+
+        // Extract render instructions from spine items
+        const instructions = [];
+        for (const id of Array.from(doc.querySelectorAll('spine itemref')).map(item => item.getAttribute('idref'))) {
+          const path = manifest[id];
+          if (path && zip.file(path)) {
+            const html = await zip.file(path).async('text');
+            instructions.push(...this.extractText(html, path));
+          }
+        }
+        return { title, content: instructions, images };
+      }
+
+      // Extract render instructions from HTML, preserving structure
+      extractText(html, basePath) {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const instructions = [];
+
+        // Utility function to resolve relative paths in EPUB
+        function resolvePath(base, relative) {
+          const baseParts = base.split('/').slice(0, -1);
+          const relParts = relative.split('/');
+          for (const part of relParts) {
+            if (part === '..') baseParts.pop();
+            else if (part && part !== '.') baseParts.push(part);
+          }
+          return baseParts.join('/');
+        }
+
+        // Function to tokenize accumulated text and add to instructions
+        function tokenizeText(textBuffer) {
+          if (textBuffer.length > 0) {
+            const textTokens = textBuffer.match(/[\p{L}\p{M}'\-0-9]+|\s+|[^\p{L}\p{M}'\-0-9\s]/gu) || [];
+            textTokens.forEach(token => {
+              if (/^[\p{L}\p{M}'\-0-9]+$/u.test(token)) {
+                instructions.push({ type: 'word', text: token });
+              } else if (/\s+/.test(token)) {
+                instructions.push({ type: 'space' });
+              } else {
+                instructions.push({ type: 'other', text: token });
+              }
+            });
+          }
+        }
+
+        // Traverse the HTML in EPUB
+        function traverse(node, textBuffer = '') {
+          if (node.nodeType === Node.TEXT_NODE) {
+            // Append text node content to the buffer
+            textBuffer += node.textContent;
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = node.tagName.toLowerCase();
+
+            if (['p', 'table', 'tr', 'td', 'th', 'i', 'b', 'em', 'strong'].includes(tag) || /^h[1-6]$/.test(tag)) {
+              // Start a new block, tokenize any prior text, and reset buffer
+              if (textBuffer.length > 0) {
+                tokenizeText(textBuffer);
+                textBuffer = '';
+              }
+              // Collect all attributes except 'style'
+              const attributes = {};
+              for (const attr of node.attributes) {
+                if (attr.name.toLowerCase() !== 'style' && !attr.name.toLowerCase().startsWith('on')) {
+                  attributes[attr.name] = attr.value;
+                }
+              }
+              instructions.push({ type: 'startBlock', tag, attributes });
+              
+              // Process child nodes, passing the buffer along
+              node.childNodes.forEach(child => {
+                textBuffer = traverse(child, textBuffer);
+              });
+              
+              // Tokenize remaining text in buffer at block end
+              if (textBuffer.length > 0) {
+                tokenizeText(textBuffer);
+                textBuffer = '';
+              }
+              instructions.push({ type: 'endBlock', tag });
+            } else if (tag === 'br') {
+              // Tokenize current buffer before adding <br>
+              if (textBuffer.length > 0) {
+                tokenizeText(textBuffer);
+                textBuffer = '';
+              }
+              instructions.push({ type: 'br' });
+            } else if (tag === 'img') {
+              // Tokenize current buffer before adding <img>
+              if (textBuffer.length > 0) {
+                tokenizeText(textBuffer);
+                textBuffer = '';
+              }
+              const src = node.getAttribute('src');
+              if (src) instructions.push({ type: 'img', path: resolvePath(basePath, src) });
+            } else {
+              // For other elements, continue traversal with buffer
+              node.childNodes.forEach(child => {
+                textBuffer = traverse(child, textBuffer);
+              });
+            }
+          }
+          return textBuffer; // Return buffer for parent to continue accumulating
+        }
+
+        traverse(doc.body);
+        return instructions;
+      }
+    }
+
+    // Handles translation services
+    class TranslationService {
+      // Translate a single word, trying Google first, then LibreTranslate if needed
+      async translateWord(word, sourceLang, targetLang, signal) {
+        let translations = state.dictionary.translate(word);
+        word = word.length > 1 ? word.charAt(0) + word.slice(1).toLowerCase() : word;
+        if (state.enableGoogleTranslate && state.googleApiKey && translations.length === 0) {
+          try {
+            const googleTrans = await this.googleTranslate(word, sourceLang, targetLang, signal);
+            if (googleTrans) translations.push(googleTrans);
+          } catch (error) {
+            if (error.name !== 'AbortError') console.error('Google Translate error:', error);
+          }
+        }
+        if (state.enableLibreTranslate && translations.length === 0) {
+          try {
+            const libreTrans = await this.libreTranslate(word, sourceLang, targetLang, signal);
+            translations.push(...libreTrans);
+          } catch (error) {
+            if (error.name !== 'AbortError') console.error('LibreTranslate error:', error);
+          }
+        }
+        return translations;
+      }
+
+      // Perform the API call to Google Translate for a single word
+      async googleTranslate(word, sourceLang, targetLang, signal) {
+        const url = `https://translation.googleapis.com/language/translate/v2?key=${state.googleApiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            q: [word],
+            source: sourceLang,
+            target: targetLang,
+            format: 'text'
+          }),
+          signal: signal
+        });
+        const data = await response.json();
+        return data.data.translations[0]?.translatedText || '';
+      }
+
+      // Perform the API call to LibreTranslate for a single word
+      async libreTranslate(word, sourceLang, targetLang, signal) {
+        try {
+          const res = await fetch("http://127.0.0.1:5000/translate", {
+            method: "POST",
+            body: JSON.stringify({
+              q: word,
+              source: sourceLang,
+              target: targetLang,
+              format: "text",
+              alternatives: 3,
+              api_key: ""
+            }),
+            headers: { "Content-Type": "application/json" },
+            signal: signal
+          });
+          if (!res.ok) throw new Error(`LibreTranslate error: ${res.statusText}`);
+          const data = await res.json();
+          const translations = [data.translatedText];
+          if (data.alternatives && Array.isArray(data.alternatives)) {
+            translations.push(...data.alternatives);
+          }
+          return translations;
+        } catch (error) {
+          if (error.name !== 'AbortError') {
+            console.error(`Error translating "${word}" with LibreTranslate:`, error);
+          }
+          return [];
+        }
+      }
+    }
+
+    // Renders book pages with translations
+    class Renderer {
+      constructor(elements) {
+        this.elements = elements;
+        this.floatingBox = document.createElement('div');
+        this.floatingBox.className = 'floating-box';
+        document.body.appendChild(this.floatingBox);
+        this.translationController = null;
+      }
+
+      // Render a specific page of the book
+      async renderPage() {
+        // Abort previous translations
+        if (this.translationController) {
+          this.translationController.abort();
+        }
+        this.translationController = new AbortController();
+
+        const content = state.content;
+        const wordsPerPage = state.wordsPerPage;
+        const page = state.page;
+
+        // Calculate start and end indices for the page
+        let wordCount = 0, i = 0;
+        while (i < content.length && wordCount < (page - 1) * wordsPerPage) {
+          if (content[i].type === 'word') wordCount++;
+          i++;
+        }
+        const startIndex = i;
+        while (i < content.length && wordCount < page * wordsPerPage) {
+          if (content[i].type === 'word') wordCount++;
+          i++;
+        }
+        const endIndex = i;
+
+        const renderInstructions = await this.getRenderInstructions(startIndex, endIndex);
+        const fragment = this.createDOMFragment(renderInstructions);
+
+        this.elements.bookContent.innerHTML = '';
+        this.elements.bookContent.appendChild(fragment);
+        this.updatePageInfo();
+      }
+
+      // Generate render instructions using dictionary translations only
+      async getRenderInstructions(startIndex, endIndex) {
+        const content = state.content;
+        const dictionary = state.dictionary;
+        const maxPhraseLength = state.maxPhraseLength;
+
+        const renderInstructions = [];
+        let j = startIndex;
+        while (j < endIndex) {
+          const instr = content[j];
+          if (instr.type === 'word') {
+            let matched = false;
+            // Check for multi-word phrases
+            for (let len = maxPhraseLength; len >= 1; len--) {
+              const phraseWords = [];
+              let k = j;
+              while (phraseWords.length < len && k < endIndex) {
+                const nextInstr = content[k];
+                if (nextInstr.type === 'word') {
+                  phraseWords.push(nextInstr.text);
+                } else if (nextInstr.type !== 'space') {
+                  break;
+                }
+                k++;
+              }
+              if (phraseWords.length === len) {
+                const phrase = phraseWords.join(' ');
+                const translations = dictionary.translate(phrase);
+                if (translations.length > 0) { // Phrase found
+                  renderInstructions.push({ type: 'phrase', text: phrase, translations });
+                  j = k;
+                  matched = true;
+                  break;
+                }
+              }
+            }
+            if (!matched) {
+              // Handle single word with dictionary translation
+              const translations = dictionary.translate(instr.text);
+              const needsTranslation = translations.length === 0;
+              renderInstructions.push({
+                type: 'word',
+                text: instr.text,
+                translations,
+                needsTranslation
+              });
+              j++;
+            }
+          } else {
+            renderInstructions.push(instr);
+            j++;
+          }
+        }
+        return renderInstructions;
+      }
+
+      // Create a DOM fragment from render instructions
+      createDOMFragment(instructions) {
+        const fragment = document.createDocumentFragment();
+        const stack = []; // Stack to manage nested block elements
+
+        instructions.forEach(instruction => {
+          if (instruction.type === 'startBlock') {
+            // Create a new block element
+            const elem = document.createElement(instruction.tag);
+            // Apply attributes from instruction, if any
+            if (instruction.attributes) {
+              Object.entries(instruction.attributes).forEach(([name, value]) => {
+                elem.setAttribute(name, value);
+              });
+            }
+            if (stack.length > 0) {
+              // Append to the current parent block
+              stack[stack.length - 1].appendChild(elem);
+            } else {
+              // Append to the fragment if no parent
+              fragment.appendChild(elem);
+            }
+            // Push the new element onto the stack
+            stack.push(elem);
+          } else if (instruction.type === 'endBlock') {
+            // Pop the current block from the stack
+            if (stack.length > 0) stack.pop();
+          } else if (instruction.type === 'br') {
+            // Create and append a <br> element
+            const br = document.createElement('br');
+            if (stack.length > 0) {
+              stack[stack.length - 1].appendChild(br);
+            } else {
+              fragment.appendChild(br);
+            }
+          } else if (instruction.type === 'img') {
+            // Create and append an <img> element
+            const imgData = state.book.images.get(instruction.path);
+            if (imgData) {
+              const img = document.createElement('img');
+              img.src = imgData;
+              img.className = 'epub-image';
+              img.alt = 'EPUB image';
+              if (stack.length > 0) {
+                stack[stack.length - 1].appendChild(img);
+              } else {
+                fragment.appendChild(img);
+              }
+            }
+          } else if (instruction.type === 'phrase' || instruction.type === 'word') {
+            // Create and append a translation box for phrases or words
+            const box = this.createTranslationBox(instruction.text, instruction.translations, true, instruction.needsTranslation);
+            if (stack.length > 0) {
+              stack[stack.length - 1].appendChild(box);
+            } else {
+              fragment.appendChild(box);
+            }
+          } else if (instruction.type === 'space') {
+            // Create and append a space text node
+            const space = document.createTextNode(' ');
+            if (stack.length > 0) {
+              stack[stack.length - 1].appendChild(space);
+            } else {
+              fragment.appendChild(space);
+            }
+          } else if (instruction.type === 'other') {
+            // Create and append a translation box for non-word tokens
+            const box = this.createTranslationBox(instruction.text, [], false, false);
+            if (stack.length > 0) {
+              stack[stack.length - 1].appendChild(box);
+            } else {
+              fragment.appendChild(box);
+            }
+          }
+        });
+
+        return fragment;
+      }
+
+      // Create a translation box for a word or phrase
+      createTranslationBox(original, translations, isClickable, needsTranslation) {
+        const div = document.createElement('div');
+        div.className = 'translation-box';
+        div.setAttribute('data-original', original);
+        const originalSpan = document.createElement('span');
+        originalSpan.className = 'original-word';
+        originalSpan.textContent = original;
+        div.appendChild(originalSpan);
+        const translationsDiv = document.createElement('div');
+        translationsDiv.className = 'translations';
+        if (translations.length > 0) {
+          translations.forEach((translation, index) => {
+            const transSpan = document.createElement('span');
+            transSpan.className = 'translated-word';
+            if (index >= state.maxTranslations) transSpan.classList.add('hidden-translation');
+            transSpan.textContent = translation;
+            translationsDiv.appendChild(transSpan);
+          });
+        } else if (needsTranslation) {
+          div.classList.add('pending-translation');
+          const placeholder = document.createElement('span');
+          placeholder.className = 'translated-word';
+          placeholder.textContent = '';
+          translationsDiv.appendChild(placeholder);
+        }
+        div.appendChild(translationsDiv);
+        if (isClickable) {
+          div.addEventListener('click', () => this.showTranslatePopup(original));
+          div.addEventListener('mouseenter', () => {
+            const rect = div.getBoundingClientRect();
+            this.floatingBox.style.left = `${rect.left + window.scrollX - 4}px`;
+            this.floatingBox.style.top = `${rect.top + window.scrollY - 4}px`;
+            let headingClass = '';
+            let current = div.parentElement;
+            while (current && current !== document.body) {
+              const tag = current.tagName.toLowerCase();
+              if (/^h[1-6]$/.test(tag)) {
+                headingClass = `floating-box-${tag}`;
+                break;
+              }
+              current = current.parentElement;
+            }
+            this.floatingBox.className = `floating-box ${headingClass}`;
+            this.floatingBox.innerHTML = `
+              <div class="original-word">${original}</div>
+              <div class="translations">${translations.map(t => `<span class="translated-word">${t}</span>`).join('')}</div>
+            `;
+            this.floatingBox.style.display = 'block';
+          });
+          div.addEventListener('mouseleave', () => this.floatingBox.style.display = 'none');
+        }
+        return div;
+      }
+
+      // Translate words that need translation after rendering
+      async translatePendingWords() {
+        if (!state.enableGoogleTranslate && !state.enableLibreTranslate) return;
+        const pendingBoxes = Array.from(this.elements.bookContent.querySelectorAll('.translation-box.pending-translation'));
+        for (const box of pendingBoxes) {
+          try {
+            const word = box.getAttribute('data-original');
+            const translations = await translationService.translateWord(word, elements.sourceLang.value, elements.targetLang.value, this.translationController.signal);
+            if (translations.length > 0) {
+              box.classList.remove('pending-translation');
+              const translationsDiv = box.querySelector('.translations');
+              translationsDiv.innerHTML = '';
+              translations.forEach((translation, index) => {
+                const transSpan = document.createElement('span');
+                transSpan.className = 'translated-word';
+                if (index >= state.maxTranslations) transSpan.classList.add('hidden-translation');
+                transSpan.textContent = translation;
+                translationsDiv.appendChild(transSpan);
+              });
+              // Store translations in cache
+              state.dictionary.addToCache(word, translations);
+            }
+            if (!state.enableGoogleTranslate && !state.enableLibreTranslate) return;
+          } catch (error) {
+            if (error.name === 'AbortError') {
+              console.log('Translation aborted for page change');
+              return;
+            } else {
+              console.error('Translation error:', error);
+            }
+          }
+        }
+      }
+
+      // Show popup with Bing Translator or LibreTranslate for a word
+      showTranslatePopup(word) {
+        const existingPopup = document.querySelector('.popup');
+        if (existingPopup) existingPopup.remove();
+        const popup = document.createElement('div');
+        popup.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        const iframe = document.createElement('iframe');
+        const url = `http://127.0.0.1:5000/?source=${elements.sourceLang.value}&target=${elements.targetLang.value}&q=${encodeURIComponent(word)}`;
+        iframe.src = url;
+        iframe.className = 'w-4/5 h-4/5 border-0';
+        const closeBtn = document.createElement('div');
+        closeBtn.textContent = 'X';
+        closeBtn.className = 'absolute top-4 right-4 bg-white dark:bg-gray-800 p-2 rounded cursor-pointer text-gray-900 dark:text-gray-100';
+        closeBtn.addEventListener('click', () => popup.remove());
+        popup.addEventListener('click', () => popup.remove());
+        popup.appendChild(iframe);
+        popup.appendChild(closeBtn);
+        document.body.appendChild(popup);
+      }
+
+      // Update page info and button states
+      updatePageInfo() {
+        const page = state.page;
+        const totalPages = state.totalPages;
+        document.querySelectorAll('.pageInfo').forEach(info => info.textContent = `Page ${page} of ${totalPages}`);
+        document.querySelectorAll('.prevPageBtn').forEach(btn => btn.disabled = page <= 1);
+        document.querySelectorAll('.nextPageBtn').forEach(btn => btn.disabled = page >= totalPages);
+      }
+    }
+
+    // Controls user interface interactions
+    class UIController {
+      constructor(epubProcessor, renderer, elements) {
+        this.epubProcessor = epubProcessor;
+        this.renderer = renderer;
+        this.elements = elements;
+
+        // Bind event listeners
+        this.elements.epubFile.addEventListener('change', this.onFileUpload.bind(this));
+        this.elements.toggleModeBtn.addEventListener('click', this.onToggleTranslationMode.bind(this));
+        this.elements.toggleSettingsBtn.addEventListener('click', this.onToggleSettings.bind(this));
+        this.elements.enableGoogleTranslate.addEventListener('change', this.onGoogleTranslateChange.bind(this));
+        this.elements.enableLibreTranslate.addEventListener('change', this.onLibreTranslateChange.bind(this));
+        this.elements.apiKey.addEventListener('input', this.onApiKeyInput.bind(this));
+        this.elements.maxTranslations.addEventListener('input', this.onMaxTranslationsChange.bind(this));
+        document.querySelectorAll('.prevPageBtn').forEach(btn => btn.addEventListener('click', this.onPrevPage.bind(this)));
+        document.querySelectorAll('.nextPageBtn').forEach(btn => btn.addEventListener('click', this.onNextPage.bind(this)));
+        window.addEventListener('resize', this.onResize.bind(this));
+        this.elements.sourceLang.addEventListener('change', this.onSourceLangChange.bind(this));
+        this.elements.targetLang.addEventListener('change', this.onTargetLangChange.bind(this));
+        this.elements.clearCacheBtn.addEventListener('click', this.onClearCache.bind(this));
+        this.elements.darkModeToggle.addEventListener('click', this.onDarkModeToggle.bind(this));
+
+        // Handle system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.applyDarkMode());
+
+        // Load settings from local storage at initialization
+        this.loadSettings();
+      }
+
+      // Handle EPUB file upload
+      async onFileUpload() {
+        const file = this.elements.epubFile.files[0];
+        if (!file) return;
+        this.elements.readerContainer.classList.remove('hidden');
+        this.elements.loadingIndicator.classList.remove('hidden');
+        this.elements.pageContainer.classList.add('hidden');
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          state.book = await this.epubProcessor.process(arrayBuffer);
+          state.content = state.book.content;
+          state.page = 1;
+          this.calculateWordsPerPage();
+          const dictUrl = `/dictionaries/dict_${this.elements.sourceLang.value}-${this.elements.targetLang.value}.txt`;
+          state.dictionary = new Dictionary(dictUrl);
+          await state.dictionary.init();
+          this.elements.bookTitle.textContent = state.book.title || 'Untitled Book';
+          this.elements.bookContent.classList.add('translation-mode');
+          await this.renderer.renderPage();
+        } catch (error) {
+          console.error('Error loading EPUB:', error);
+          alert(`Error: ${error.message}`);
+        } finally {
+          this.elements.loadingIndicator.classList.add('hidden');
+          this.elements.pageContainer.classList.remove('hidden');
+          this.renderer.translatePendingWords();
+          this.updateCacheCount(); // Update cache count after dictionary load
+        }
+      }
+
+      // Calculate words per page based on viewport size
+      calculateWordsPerPage() {
+        const pageHeight = window.innerHeight - 200;
+        state.wordsPerPage = Math.floor((pageHeight * window.innerWidth) / (40 * 20));
+        const totalWords = state.content.filter(instr => instr.type === 'word').length;
+        state.totalPages = Math.ceil(totalWords / state.wordsPerPage);
+      }
+
+      // Toggle translation visibility
+      onToggleTranslationMode() {
+        state.isTranslationMode = !state.isTranslationMode;
+        this.elements.toggleModeBtn.textContent = state.isTranslationMode ? 'Hide Translations' : 'Show Translations';
+        this.elements.bookContent.classList.toggle('translation-mode', state.isTranslationMode);
+      }
+
+      // Toggle settings panel visibility
+      onToggleSettings() {
+        const isHidden = this.elements.settingsContainer.classList.toggle('hidden');
+        this.elements.toggleSettingsBtn.textContent = isHidden ? 'Show Settings' : 'Hide Settings';
+      }
+
+      // Handle Google Translate checkbox change
+      onGoogleTranslateChange() {
+        state.enableGoogleTranslate = this.elements.enableGoogleTranslate.checked;
+        this.elements.apiKeyContainer.classList.toggle('hidden', !state.enableGoogleTranslate);
+        if (!state.enableGoogleTranslate) {
+          state.googleApiKey = '';
+          this.elements.apiKey.value = '';
+        }
+        this.saveSettings();
+        if (state.book) this.renderer.translatePendingWords();
+      }
+
+      // Handle API key input
+      onApiKeyInput() {
+        state.googleApiKey = this.elements.apiKey.value.trim();
+        this.saveSettings();
+      }
+
+      // Handle LibreTranslate checkbox change
+      onLibreTranslateChange() {
+        state.enableLibreTranslate = this.elements.enableLibreTranslate.checked;
+        this.saveSettings();
+        if (state.book) this.renderer.translatePendingWords();
+      }
+
+      // Handle max translations input
+      async onMaxTranslationsChange() {
+        state.maxTranslations = Math.max(1, parseInt(this.elements.maxTranslations.value) || 1);
+        this.saveSettings();
+        if (state.book) {
+          await this.renderer.renderPage();
+          this.renderer.translatePendingWords();
+        }
+      }
+
+      // Navigate to previous page
+      async onPrevPage() {
+        if (state.page > 1) {
+          state.page--;
+          await this.renderer.renderPage();
+          this.renderer.translatePendingWords();
+        }
+      }
+
+      // Navigate to next page
+      async onNextPage() {
+        if (state.page < state.totalPages) {
+          state.page++;
+          await this.renderer.renderPage();
+          this.renderer.translatePendingWords();
+        }
+      }
+
+      // Adjust pagination on window resize
+      async onResize() {
+        if (state.book) {
+          this.calculateWordsPerPage();
+          await this.renderer.renderPage();
+          this.renderer.translatePendingWords();
+        }
+      }
+
+      // Handle source language change
+      onSourceLangChange() {
+        this.saveSettings();
+        this.updateCacheCount();
+      }
+
+      // Handle target language change
+      onTargetLangChange() {
+        this.saveSettings();
+        this.updateCacheCount();
+      }
+
+      // Handle clear cache button click
+      onClearCache() {
+        const sourceLang = this.elements.sourceLang.value;
+        const targetLang = this.elements.targetLang.value;
+        const langPair = `${sourceLang}-${targetLang}`;
+        const cacheKey = `cache_${langPair}`;
+        localStorage.removeItem(cacheKey);
+        if (state.dictionary && state.dictionary.langPair === langPair) {
+          state.dictionary.cacheTranslations = new Map();
+        }
+        this.updateCacheCount();
+      }
+
+      // Update the cache entry count display
+      updateCacheCount() {
+        const sourceLang = this.elements.sourceLang.value;
+        const targetLang = this.elements.targetLang.value;
+        const langPair = `${sourceLang}-${targetLang}`;
+        const cacheKey = `cache_${langPair}`;
+        const cachedData = localStorage.getItem(cacheKey);
+        let count = 0;
+        if (cachedData) {
+          try {
+            const parsed = JSON.parse(cachedData);
+            if (Array.isArray(parsed)) {
+              count = parsed.length;
+            }
+          } catch (e) {
+            console.error('Error parsing cache data:', e);
+          }
+        }
+        this.elements.cacheCount.textContent = `${count} entries`;
+      }
+
+      // Handle dark mode toggle
+      onDarkModeToggle() {
+        const modes = ['system', 'light', 'dark'];
+        const currentIndex = modes.indexOf(state.darkMode);
+        const nextIndex = (currentIndex + 1) % modes.length;
+        state.darkMode = modes[nextIndex];
+        this.applyDarkMode();
+        this.saveSettings();
+      }
+
+      // Apply dark mode based on state and system preference
+      applyDarkMode() {
+        const isSystemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const html = document.documentElement;
+
+        if (state.darkMode === 'system') {
+          if (isSystemDark) {
+            html.classList.add('dark');
+            this.elements.darkModeToggle.textContent = 'System (Dark)';
+          } else {
+            html.classList.remove('dark');
+            this.elements.darkModeToggle.textContent = 'System (Light)';
+          }
+        } else if (state.darkMode === 'dark') {
+          html.classList.add('dark');
+          this.elements.darkModeToggle.textContent = 'Dark';
+        } else {
+          html.classList.remove('dark');
+          this.elements.darkModeToggle.textContent = 'Light';
+        }
+      }
+
+      // Save settings to local storage
+      saveSettings() {
+        localStorage.setItem('sourceLang', this.elements.sourceLang.value);
+        localStorage.setItem('targetLang', this.elements.targetLang.value);
+        localStorage.setItem('maxTranslations', this.elements.maxTranslations.value);
+        localStorage.setItem('enableGoogleTranslate', this.elements.enableGoogleTranslate.checked);
+        localStorage.setItem('enableLibreTranslate', this.elements.enableLibreTranslate.checked);
+        localStorage.setItem('googleApiKey', this.elements.apiKey.value);
+        localStorage.setItem('darkMode', state.darkMode);
+      }
+
+      // Load settings from local storage
+      loadSettings() {
+        const sourceLang = localStorage.getItem('sourceLang') || 'es';
+        this.elements.sourceLang.value = sourceLang;
+
+        const targetLang = localStorage.getItem('targetLang') || 'de';
+        this.elements.targetLang.value = targetLang;
+
+        const maxTranslations = localStorage.getItem('maxTranslations') || '2';
+        this.elements.maxTranslations.value = maxTranslations;
+        state.maxTranslations = parseInt(maxTranslations) || 1;
+
+        const enableGoogleTranslate = localStorage.getItem('enableGoogleTranslate') === 'true';
+        this.elements.enableGoogleTranslate.checked = enableGoogleTranslate;
+        state.enableGoogleTranslate = enableGoogleTranslate;
+
+        const enableLibreTranslate = localStorage.getItem('enableLibreTranslate') === 'true';
+        this.elements.enableLibreTranslate.checked = enableLibreTranslate;
+        state.enableLibreTranslate = enableLibreTranslate;
+
+        const googleApiKey = localStorage.getItem('googleApiKey') || '';
+        this.elements.apiKey.value = googleApiKey;
+        state.googleApiKey = googleApiKey;
+
+        const darkMode = localStorage.getItem('darkMode') || 'system';
+        state.darkMode = darkMode;
+
+        // Toggle apiKeyContainer visibility based on Google Translate setting
+        this.elements.apiKeyContainer.classList.toggle('hidden', !enableGoogleTranslate);
+
+        // Apply dark mode
+        this.applyDarkMode();
+
+        // Update cache count after loading language settings
+        this.updateCacheCount();
+      }
+    }
+
+    // DOM elements for easy access
+    const elements = {
+      epubFile: document.getElementById('epubFile'),
+      sourceLang: document.getElementById('sourceLang'),
+      targetLang: document.getElementById('targetLang'),
+      maxTranslations: document.getElementById('maxTranslations'),
+      enableGoogleTranslate: document.getElementById('enableGoogleTranslate'),
+      enableLibreTranslate: document.getElementById('enableLibreTranslate'),
+      apiKeyContainer: document.getElementById('apiKeyContainer'),
+      apiKey: document.getElementById('apiKey'),
+      readerContainer: document.getElementById('readerContainer'),
+      bookTitle: document.getElementById('bookTitle'),
+      bookContent: document.getElementById('bookContent'),
+      loadingIndicator: document.getElementById('loadingIndicator'),
+      pageContainer: document.getElementById('pageContainer'),
+      toggleModeBtn: document.getElementById('toggleModeBtn'),
+      toggleSettingsBtn: document.getElementById('toggleSettingsBtn'),
+      settingsContainer: document.getElementById('settingsContainer'),
+      clearCacheBtn: document.getElementById('clearCacheBtn'),
+      cacheCount: document.getElementById('cacheCount'),
+      darkModeToggle: document.getElementById('darkModeToggle')
+    };
+
+    // Initialize application components
+    const epubProcessor = new EPUBProcessor();
+    const translationService = new TranslationService();
+    const renderer = new Renderer(elements);
+    const uiController = new UIController(epubProcessor, renderer, elements);
+  </script>
+</body>
+</html>
