@@ -911,6 +911,7 @@
 
       // Show popup with Bing Translator or LibreTranslate for a word
       showTranslatePopup(word) {
+        word = word.length > 1 ? word.charAt(0) + word.slice(1).toLowerCase() : word;
         const existingPopup = document.querySelector('.popup');
         if (existingPopup) existingPopup.remove();
         const popup = document.createElement('div');
