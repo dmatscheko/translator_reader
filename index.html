@@ -916,7 +916,9 @@
         const popup = document.createElement('div');
         popup.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
         const iframe = document.createElement('iframe');
-        const url = `http://127.0.0.1:5000/?source=${elements.sourceLang.value}&target=${elements.targetLang.value}&q=${encodeURIComponent(word)}`;
+        const url = state.enableLibreTranslate
+          ? `http://127.0.0.1:5000/?source=${elements.sourceLang.value}&target=${elements.targetLang.value}&q=${encodeURIComponent(word)}`
+          : `https://www.bing.com/translator?from=${elements.sourceLang.value}&to=${elements.targetLang.value}&text=${encodeURIComponent(word)}&op=translate`;
         iframe.src = url;
         iframe.className = 'w-4/5 h-4/5 border-0';
         const closeBtn = document.createElement('div');
