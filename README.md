@@ -12,6 +12,10 @@ The EPUB Translator Reader is a web-based application designed to read EPUB file
 - **Integration with Translation Services**: Use Google Translate or LibreTranslate for words not found in the dictionary.
 - **Customizable Settings**: Adjust the number of translations per word and enable/disable translation services.
 
+## Screenshot
+
+![EPUB Translator Reader Screenshot](screenshot.png)
+
 ## Setup
 
 To set up and run the EPUB Translator Reader, follow these steps:
