@@ -424,6 +424,7 @@
         const cacheKey = `cache_${this.langPair}`;
         const data = Array.from(this.cacheTranslations.entries()).map(([k, v]) => [k, Array.from(v)]);
         localStorage.setItem(cacheKey, JSON.stringify(data));
+        uiController.updateCacheCount();
       }
     }
 
@@ -998,7 +999,7 @@
           this.elements.loadingIndicator.classList.add('hidden');
           this.elements.pageContainer.classList.remove('hidden');
           this.renderer.translatePendingWords();
-          this.updateCacheCount(); // Update cache count after dictionary load
+          this.updateCacheCount();
         }
       }
 
@@ -1099,9 +1100,7 @@
 
       // Handle clear cache button click
       onClearCache() {
-        const sourceLang = this.elements.sourceLang.value;
-        const targetLang = this.elements.targetLang.value;
-        const langPair = `${sourceLang}-${targetLang}`;
+        const langPair = `${this.elements.sourceLang.value}-${this.elements.targetLang.value}`;
         const cacheKey = `cache_${langPair}`;
         localStorage.removeItem(cacheKey);
         if (state.dictionary && state.dictionary.langPair === langPair) {
@@ -1112,9 +1111,7 @@
 
       // Update the cache entry count display
       updateCacheCount() {
-        const sourceLang = this.elements.sourceLang.value;
-        const targetLang = this.elements.targetLang.value;
-        const langPair = `${sourceLang}-${targetLang}`;
+        const langPair = `${this.elements.sourceLang.value}-${this.elements.targetLang.value}`;
         const cacheKey = `cache_${langPair}`;
         const cachedData = localStorage.getItem(cacheKey);
         let count = 0;
