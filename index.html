@@ -231,10 +231,11 @@
           <label for="apiKey" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Google Translate API Key</label>
           <input type="text" id="apiKey" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="Enter your API key">
         </div>
-        <!-- Button to clear dictionary cache and counter for entries -->
+        <!-- Buttons to clear dictionary cache and EPUB -->
         <div class="flex items-center space-x-4 mt-4">
           <button id="clearCacheBtn" class="text-sm px-3 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-800">Clear Dictionary Cache</button>
           <span id="cacheCount" class="text-sm text-gray-600 dark:text-gray-400">0 entries</span>
+          <button id="clearEPUBBtn" class="text-sm px-3 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-800">Clear Ebook</button>
         </div>
       </div>
     </section>
@@ -970,24 +971,23 @@
         this.elements.sourceLang.addEventListener('change', this.onSourceLangChange.bind(this));
         this.elements.targetLang.addEventListener('change', this.onTargetLangChange.bind(this));
         this.elements.clearCacheBtn.addEventListener('click', this.onClearCache.bind(this));
+        this.elements.clearEPUBBtn.addEventListener('click', this.onClearEPUB.bind(this));
         this.elements.darkModeToggle.addEventListener('click', this.onDarkModeToggle.bind(this));
 
         // Handle system theme changes
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.applyDarkMode());
 
-        // Load settings from local storage at initialization
+        // Load settings and check for stored EPUB at initialization
         this.loadSettings();
+        this.loadStoredEPUB();
       }
 
-      // Handle EPUB file upload
-      async onFileUpload() {
-        const file = this.elements.epubFile.files[0];
-        if (!file) return;
+      // Load an EPUB (from file or storage) and render it
+      async loadEPUB(arrayBuffer) {
         this.elements.readerContainer.classList.remove('hidden');
         this.elements.loadingIndicator.classList.remove('hidden');
         this.elements.pageContainer.classList.add('hidden');
         try {
-          const arrayBuffer = await file.arrayBuffer();
           state.book = await this.epubProcessor.process(arrayBuffer);
           state.content = state.book.content;
           state.page = 1;
@@ -999,14 +999,70 @@
           this.elements.bookContent.classList.add('translation-mode');
           await this.renderer.renderPage();
         } catch (error) {
-          console.error('Error loading EPUB:', error);
-          alert(`Error: ${error.message}`);
+          throw error; // Let caller handle the error
         } finally {
           this.elements.loadingIndicator.classList.add('hidden');
           this.elements.pageContainer.classList.remove('hidden');
           this.renderer.translatePendingWords();
           this.updateCacheCount();
         }
+      }
+
+      // Load a stored EPUB from localStorage
+      async loadStoredEPUB() {
+        const storedEPUB = localStorage.getItem('storedEPUB');
+        if (storedEPUB) {
+          try {
+            // Convert base64 back to ArrayBuffer
+            const binaryString = atob(storedEPUB);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            const arrayBuffer = bytes.buffer;
+            await this.loadEPUB(arrayBuffer);
+          } catch (error) {
+            console.error('Error loading stored EPUB:', error);
+            localStorage.removeItem('storedEPUB');
+            this.resetReader();
+          }
+        }
+      }
+
+      // Handle EPUB file upload
+      async onFileUpload() {
+        const file = this.elements.epubFile.files[0];
+        if (!file) return;
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          // Save EPUB to localStorage
+          const uint8Array = new Uint8Array(arrayBuffer);
+          let binaryString = '';
+          for (let i = 0; i < uint8Array.length; i++) {
+            binaryString += String.fromCharCode(uint8Array[i]);
+          }
+          localStorage.setItem('storedEPUB', btoa(binaryString));
+          await this.loadEPUB(arrayBuffer);
+        } catch (error) {
+          console.error('Error loading EPUB:', error);
+          alert(`Error: ${error.message}`);
+        }
+      }
+
+      // Reset the reader UI and state
+      resetReader() {
+        state.book = null;
+        state.content = [];
+        state.page = 1;
+        state.totalPages = 0;
+        this.elements.readerContainer.classList.add('hidden');
+        this.elements.bookTitle.textContent = '';
+        this.elements.bookContent.innerHTML = '';
+        this.elements.bookContent.classList.remove('translation-mode');
+        this.elements.toggleModeBtn.textContent = 'Hide Translations';
+        state.isTranslationMode = true;
+        this.renderer.updatePageInfo();
       }
 
       // Calculate total pages based on fixed words per page
@@ -1117,6 +1173,12 @@
           state.dictionary.cacheTranslations = new Map();
         }
         this.updateCacheCount();
+      }
+
+      // Handle clear EPUB button click
+      onClearEPUB() {
+        localStorage.removeItem('storedEPUB');
+        this.resetReader();
       }
 
       // Update the cache entry count display
@@ -1244,6 +1306,7 @@
       toggleSettingsBtn: document.getElementById('toggleSettingsBtn'),
       settingsContainer: document.getElementById('settingsContainer'),
       clearCacheBtn: document.getElementById('clearCacheBtn'),
+      clearEPUBBtn: document.getElementById('clearEPUBBtn'),
       cacheCount: document.getElementById('cacheCount'),
       darkModeToggle: document.getElementById('darkModeToggle')
     };
