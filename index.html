@@ -987,7 +987,7 @@
           state.content = state.book.content;
           state.page = 1;
           this.calculateWordsPerPage();
-          const dictUrl = `/dictionaries/dict_${this.elements.sourceLang.value}-${this.elements.targetLang.value}.txt`;
+          const dictUrl = `dictionaries/dict_${this.elements.sourceLang.value}-${this.elements.targetLang.value}.txt`;
           state.dictionary = new Dictionary(dictUrl);
           await state.dictionary.init();
           this.elements.bookTitle.textContent = state.book.title || 'Untitled Book';
