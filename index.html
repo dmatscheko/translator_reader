@@ -145,7 +145,7 @@
     h1>.translation-box>.original-word, .floating-box-h1 .original-word { font-size: 2em; font-weight: bold; }
     h2>.translation-box>.original-word, .floating-box-h2 .original-word { font-size: 1.5em; font-weight: bold; }
     h3>.translation-box>.original-word, .floating-box-h3 .original-word { font-size: 1.17em; font-weight: bold; }
-    h4>.translation-box>.original-word, .floating-box28f69273-7825-4ce5-af65-034dd404ca6c-h4 .original-word { font-size: 1em; font-weight: bold; }
+    h4>.translation-box>.original-word, .floating-box-h4 .original-word { font-size: 1em; font-weight: bold; }
     h5>.translation-box>.original-word, .floating-box-h5 .original-word { font-size: 0.83em; font-weight: bold; }
     h6>.translation-box>.original-word, .floating-box-h6 .original-word { font-size: 0.67em; font-weight: bold; }
   </style>
@@ -208,6 +208,11 @@
         <div class="w-full md:w-1/3">
           <label for="maxTranslations" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Translations per Word</label>
           <input type="number" id="maxTranslations" value="2" min="1" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+        </div>
+        <!-- Input for words per page -->
+        <div class="w-full md:w-1/3">
+          <label for="wordsPerPage" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Words per Page</label>
+          <input type="number" id="wordsPerPage" value="500" min="100" step="50" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
         </div>
       </div>
       <!-- Google Translate and LibreTranslate integration settings -->
@@ -300,7 +305,7 @@
       totalPages: 0, // Total number of pages
       content: [], // Array of render instructions from EPUB
       isTranslationMode: true, // Toggle for showing translations
-      wordsPerPage: 0, // Words per page for pagination
+      fixedWordsPerPage: 500, // Fixed number of words per page
       maxPhraseLength: 5, // Max words to check for phrases
       enableGoogleTranslate: false, // Toggle for Google Translate
       enableLibreTranslate: false, // Toggle for LibreTranslate
@@ -662,7 +667,7 @@
         this.translationController = new AbortController();
 
         const content = state.content;
-        const wordsPerPage = state.wordsPerPage;
+        const wordsPerPage = state.fixedWordsPerPage;
         const page = state.page;
 
         // Calculate start and end indices for the page
@@ -959,9 +964,9 @@
         this.elements.enableLibreTranslate.addEventListener('change', this.onLibreTranslateChange.bind(this));
         this.elements.apiKey.addEventListener('input', this.onApiKeyInput.bind(this));
         this.elements.maxTranslations.addEventListener('input', this.onMaxTranslationsChange.bind(this));
+        this.elements.wordsPerPage.addEventListener('input', this.onWordsPerPageChange.bind(this));
         document.querySelectorAll('.prevPageBtn').forEach(btn => btn.addEventListener('click', this.onPrevPage.bind(this)));
         document.querySelectorAll('.nextPageBtn').forEach(btn => btn.addEventListener('click', this.onNextPage.bind(this)));
-        window.addEventListener('resize', this.onResize.bind(this));
         this.elements.sourceLang.addEventListener('change', this.onSourceLangChange.bind(this));
         this.elements.targetLang.addEventListener('change', this.onTargetLangChange.bind(this));
         this.elements.clearCacheBtn.addEventListener('click', this.onClearCache.bind(this));
@@ -986,7 +991,7 @@
           state.book = await this.epubProcessor.process(arrayBuffer);
           state.content = state.book.content;
           state.page = 1;
-          this.calculateWordsPerPage();
+          this.calculateTotalPages();
           const dictUrl = `dictionaries/dict_${this.elements.sourceLang.value}-${this.elements.targetLang.value}.txt`;
           state.dictionary = new Dictionary(dictUrl);
           await state.dictionary.init();
@@ -1004,12 +1009,25 @@
         }
       }
 
-      // Calculate words per page based on viewport size
-      calculateWordsPerPage() {
-        const pageHeight = window.innerHeight - 200;
-        state.wordsPerPage = Math.floor((pageHeight * window.innerWidth) / (40 * 20));
+      // Calculate total pages based on fixed words per page
+      calculateTotalPages() {
         const totalWords = state.content.filter(instr => instr.type === 'word').length;
-        state.totalPages = Math.ceil(totalWords / state.wordsPerPage);
+        state.totalPages = Math.ceil(totalWords / state.fixedWordsPerPage);
+      }
+
+      // Handle words per page input
+      async onWordsPerPageChange() {
+        const newValue = parseInt(this.elements.wordsPerPage.value) || 500;
+        state.fixedWordsPerPage = Math.max(100, newValue);
+        this.elements.wordsPerPage.value = state.fixedWordsPerPage;
+        this.saveSettings();
+        if (state.book) {
+          this.calculateTotalPages();
+          // Adjust current page if it exceeds new total pages
+          state.page = Math.min(state.page, state.totalPages);
+          await this.renderer.renderPage();
+          this.renderer.translatePendingWords();
+        }
       }
 
       // Toggle translation visibility
@@ -1073,15 +1091,6 @@
       async onNextPage() {
         if (state.page < state.totalPages) {
           state.page++;
-          await this.renderer.renderPage();
-          this.renderer.translatePendingWords();
-        }
-      }
-
-      // Adjust pagination on window resize
-      async onResize() {
-        if (state.book) {
-          this.calculateWordsPerPage();
           await this.renderer.renderPage();
           this.renderer.translatePendingWords();
         }
@@ -1166,6 +1175,7 @@
         localStorage.setItem('sourceLang', this.elements.sourceLang.value);
         localStorage.setItem('targetLang', this.elements.targetLang.value);
         localStorage.setItem('maxTranslations', this.elements.maxTranslations.value);
+        localStorage.setItem('fixedWordsPerPage', state.fixedWordsPerPage);
         localStorage.setItem('enableGoogleTranslate', this.elements.enableGoogleTranslate.checked);
         localStorage.setItem('enableLibreTranslate', this.elements.enableLibreTranslate.checked);
         localStorage.setItem('googleApiKey', this.elements.apiKey.value);
@@ -1183,6 +1193,10 @@
         const maxTranslations = localStorage.getItem('maxTranslations') || '2';
         this.elements.maxTranslations.value = maxTranslations;
         state.maxTranslations = parseInt(maxTranslations) || 1;
+
+        const fixedWordsPerPage = localStorage.getItem('fixedWordsPerPage') || '500';
+        this.elements.wordsPerPage.value = fixedWordsPerPage;
+        state.fixedWordsPerPage = parseInt(fixedWordsPerPage) || 500;
 
         const enableGoogleTranslate = localStorage.getItem('enableGoogleTranslate') === 'true';
         this.elements.enableGoogleTranslate.checked = enableGoogleTranslate;
@@ -1216,6 +1230,7 @@
       sourceLang: document.getElementById('sourceLang'),
       targetLang: document.getElementById('targetLang'),
       maxTranslations: document.getElementById('maxTranslations'),
+      wordsPerPage: document.getElementById('wordsPerPage'),
       enableGoogleTranslate: document.getElementById('enableGoogleTranslate'),
       enableLibreTranslate: document.getElementById('enableLibreTranslate'),
       apiKeyContainer: document.getElementById('apiKeyContainer'),
