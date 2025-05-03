@@ -87,6 +87,30 @@
         column-width: 45vw;
       }
     }
+    @media (max-width: 640px) {
+      #readerContainer .flex.justify-between.items-center {
+        flex-wrap: wrap; /* Allow buttons to wrap to the next line */
+        gap: 0.5rem; /* Reduce gap for tighter spacing */
+      }
+      #readerContainer .flex.items-center.gap-4 {
+        flex-wrap: wrap; /* Ensure navigation and buttons wrap */
+        gap: 0.5rem;
+      }
+      #toggleModeBtn, #toggleSettingsBtn {
+        font-size: 0.75rem; /* Smaller font size */
+        padding: 0.25rem 0.5rem; /* Reduced padding */
+      }
+      .pageInfo {
+        font-size: 0.75rem; /* Smaller page info text */
+      }
+      .prevPageBtn, .nextPageBtn {
+        padding: 0.25rem; /* Smaller buttons */
+      }
+      .prevPageBtn svg, .nextPageBtn svg {
+        height: 1rem; /* Smaller icons */
+        width: 1rem;
+      }
+    }
     /* Custom styling for file input button */
     .file-input-label {
       display: inline-block;
