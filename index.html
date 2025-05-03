@@ -1074,6 +1074,7 @@
             state.page = newPage;
             await this.renderer.renderPage();
             this.renderer.translatePendingWords();
+            this.savePageNumber();
           } else {
             // Restore original text if input is invalid
             pageInfoElement.textContent = originalText;
@@ -1134,10 +1135,19 @@
             }
             const arrayBuffer = bytes.buffer;
             await this.loadEPUB(arrayBuffer);
+            // Restore the saved page number after loading EPUB
+            const savedPage = localStorage.getItem('storedPage');
+            if (savedPage) {
+              const pageNum = parseInt(savedPage);
+              if (pageNum >= 1 && pageNum <= state.totalPages) {
+                state.page = pageNum;
+                await this.renderer.renderPage();
+                this.renderer.translatePendingWords();
+              }
+            }
           } catch (error) {
             console.error('Error loading stored EPUB:', error);
-            localStorage.removeItem('storedEPUB');
-            this.resetReader();
+            this.onClearEPUB();
           }
         }
       }
@@ -1148,7 +1158,7 @@
         if (!file) return;
         try {
           const arrayBuffer = await file.arrayBuffer();
-          // Save EPUB to localStorage
+                    // Save EPUB to localStorage
           const uint8Array = new Uint8Array(arrayBuffer);
           let binaryString = '';
           for (let i = 0; i < uint8Array.length; i++) {
@@ -1195,6 +1205,7 @@
           state.page = Math.min(state.page, state.totalPages);
           await this.renderer.renderPage();
           this.renderer.translatePendingWords();
+          this.savePageNumber();
         }
       }
 
@@ -1252,6 +1263,7 @@
           state.page--;
           await this.renderer.renderPage();
           this.renderer.translatePendingWords();
+          this.savePageNumber();
         }
       }
 
@@ -1261,6 +1273,7 @@
           state.page++;
           await this.renderer.renderPage();
           this.renderer.translatePendingWords();
+          this.savePageNumber();
         }
       }
 
@@ -1290,6 +1303,7 @@
       // Handle clear EPUB button click
       onClearEPUB() {
         localStorage.removeItem('storedEPUB');
+        localStorage.removeItem('storedPage');
         this.resetReader();
       }
 
@@ -1341,6 +1355,13 @@
         } else {
           html.classList.remove('dark');
           this.elements.darkModeToggle.textContent = 'Light';
+        }
+      }
+
+      // Save the current page number to localStorage
+      savePageNumber() {
+        if (state.book) {
+          localStorage.setItem('storedPage', state.page);
         }
       }
 
